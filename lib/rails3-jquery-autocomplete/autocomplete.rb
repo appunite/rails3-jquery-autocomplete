@@ -3,13 +3,14 @@ module Rails3JQueryAutocomplete
     def self.included(target)
       target.extend Rails3JQueryAutocomplete::Autocomplete::ClassMethods
 
-      if defined?(Mongoid::Document)
-        target.send :include, Rails3JQueryAutocomplete::Orm::Mongoid
-      elsif defined?(MongoMapper::Document)
-        target.send :include, Rails3JQueryAutocomplete::Orm::MongoMapper
-      else
-        target.send :include, Rails3JQueryAutocomplete::Orm::ActiveRecord
-      end
+      # some problems with multiple ORM in one app
+      #if defined?(Mongoid::Document)
+      #  target.send :include, Rails3JQueryAutocomplete::Orm::Mongoid
+      #elsif defined?(MongoMapper::Document)
+      #  target.send :include, Rails3JQueryAutocomplete::Orm::MongoMapper
+      #else
+      #  target.send :include, Rails3JQueryAutocomplete::Orm::ActiveRecord
+      #end
     end
 
     #
@@ -41,9 +42,17 @@ module Rails3JQueryAutocomplete
     # end
     #
     module ClassMethods
-      def autocomplete(object, method, options = {})
-        define_method("autocomplete_#{object}_#{method}") do
+      def autocomplete(object, method, options = { })
+        case options[:orm]
+          when :mongoid then
+            self.send :include, Rails3JQueryAutocomplete::Orm::Mongoid
+          when :mongo_mapper then
+            self.send :include, Rails3JQueryAutocomplete::Orm::MongoMapper
+          else
+            self.send :include, Rails3JQueryAutocomplete::Orm::ActiveRecord
+        end
 
+        define_method("autocomplete_#{object}_#{method}") do
           method = options[:column_name] if options.has_key?(:column_name)
 
           term = params[:term]
@@ -54,7 +63,7 @@ module Rails3JQueryAutocomplete
             items = get_autocomplete_items(:model => get_object(class_name), \
               :options => options, :term => term, :method => method)
           else
-            items = {}
+            items = { }
           end
 
           render :json => json_for_autocomplete(items, options[:display_value] ||= method, options[:extra_data])
@@ -83,7 +92,7 @@ module Rails3JQueryAutocomplete
     #
     def json_for_autocomplete(items, method, extra_data=[])
       items.collect do |item|
-        hash = {"id" => item.id.to_s, "label" => item.send(method), "value" => item.send(method)}
+        hash = { "id" => item.id.to_s, "label" => item.send(method), "value" => item.send(method) }
         extra_data.each do |datum|
           hash[datum] = item.send(datum)
         end if extra_data
